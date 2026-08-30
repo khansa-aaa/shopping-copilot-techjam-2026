@@ -1,4 +1,4 @@
-"""Adapter for the participant kit's built-in evaluator."""
+"""Official top-level TechJam submission entrypoint."""
 
 from shopping_copilot.agent import Agent
 

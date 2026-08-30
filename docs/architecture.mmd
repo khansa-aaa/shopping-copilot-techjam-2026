@@ -1,0 +1,18 @@
+flowchart LR
+  E[Official evaluator] -->|reset / respond| A[Strict Agent contract]
+  A --> S[Typed session state]
+  S --> R{Evidence-aware route activation}
+  R --> F[Weighted SQLite FTS5]
+  R --> X[Structured facets]
+  R --> D[256D catalog-derived vectors]
+  R --> P[Optional profile prior]
+  F --> W[Weighted reciprocal-rank fusion]
+  X --> W
+  D --> W
+  P --> W
+  W --> H[Confidence-aware filtering and top-100 rerank]
+  H --> C[Clarification / diversity / unseen rotation]
+  C --> V[Deterministic output validator]
+  S -. opt-in, max 2 calls .-> O[GPT-5.6 Luna Structured Output]
+  O -. validated candidate subset only .-> H
+  O -. failure / timeout .-> H

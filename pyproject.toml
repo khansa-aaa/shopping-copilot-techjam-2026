@@ -1,0 +1,9 @@
+[project]
+name = "techjam-shopping-copilot"
+version = "1.0.0"
+description = "Offline-first conversational product retrieval agent"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.unittest]
+start-directory = "tests"
