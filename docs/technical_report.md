@@ -2,9 +2,11 @@
 
 ## Executive result
 
-Shopping Copilot is a headless, offline-first multi-turn retrieval agent. It
-preserves the organizer's frozen 50,000-product catalog, exact-ASIN scoring,
-ten-turn protocol, and `Agent.reset` / `Agent.respond` contract.
+Shopping Copilot is an offline-first multi-turn retrieval agent with both the
+official headless contract and a local end-to-end web experience. It preserves
+the organizer's frozen 50,000-product catalog, exact-ASIN scoring, ten-turn
+protocol, and `Agent.reset` / `Agent.respond` contract. The React/FastAPI layer
+does not alter the scored response schema or the frozen evaluation path.
 
 On the unmodified 200-session public evaluator, the frozen offline configuration
 improves TechnicalScore from `0.106710` to `0.815322`.
@@ -12,24 +14,44 @@ improves TechnicalScore from `0.106710` to `0.815322`.
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
   E[Official evaluator] --> A[Strict Agent contract]
+  U[Local shopper] --> UI[React experience]
+  UI --> API[Loopback FastAPI adapter]
+  API --> A
   A --> S[Typed session state]
   S --> R{Soft route probabilities}
   R --> F[Weighted FTS5]
   R --> X[Structured facets]
   R --> D[256D dense hash index]
   R --> P[Optional profile prior]
-  F --> W[Weighted reciprocal-rank fusion]
-  X --> W
-  D --> W
-  P --> W
-  W --> H[Filter relaxation and top-100 rerank]
+  F --> WRF[Weighted reciprocal-rank fusion]
+  X --> WRF
+  D --> WRF
+  P --> WRF
+  WRF --> H[Filter relaxation and top-100 rerank]
   H --> C[Clarify, diversify, rotate unseen]
   C --> V[Deterministic output validator]
-  S -. opt-in, max two calls .-> O[GPT-5.6 Luna]
-  O -. validated subset or fallback .-> H
+  UI -. explicit per-session consent .-> O[Bounded OpenAI enhancement]
+  S -. consented distilled state .-> O
+  H -. at most 30 valid candidates .-> O
+  O -. validated order or offline fallback .-> H
+  V --> API
 ```
+
+The adapter owns session identifiers, expected turns, ten-turn enforcement,
+idempotent create/message requests, and display enrichment. It serializes access
+to the shared in-memory Agent/SQLite structures and preserves the previous Agent
+state if a turn raises. The official Agent response is returned unchanged under
+`agent_response`; product display fields, quick replies, snapshot disclosures,
+latency/cost data, and expert diagnostics remain outside the scoring contract.
+
+The React client adds a conversational workspace, suggested replies, explicit
+intent override, unseen-option rotation, local shortlist, two-to-three-product
+comparison, details, Markdown/JSON export, marketplace verification links, and
+transparent expert diagnostics. It defaults to the local-only Offline mode and
+requires explicit, per-session UI consent before Hybrid data transmission. It is
+served by the same loopback process after a static production build.
 
 ### Catalog preparation
 
@@ -78,7 +100,7 @@ composite `ask_attribute="other"` question. Later questions maximize entropy ove
 available candidate facets, with practical fallbacks. Tombstoned attributes are
 not repeated, and turn ten always returns `ask_attribute=null`.
 
-### Optional OpenAI path
+### Optional OpenAI paths
 
 The optional implementation follows the OpenAI Responses API and GPT-5.6 Luna
 model documentation:
@@ -94,12 +116,37 @@ model documentation:
 
 References:
 [Responses API create](https://developers.openai.com/api/reference/cli/resources/responses/methods/create),
-[GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
+[GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna),
+[GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra).
 
-This path is disabled in the frozen configuration because no credentialed
-holdout experiment was available. `OPENAI_API_KEY` was absent during all reported
-runs. Explicit use additionally requires `SHOPPING_COPILOT_OPENAI=1`; otherwise
-the network path is unreachable.
+This conservative path is disabled in the frozen scored configuration because no
+credentialed holdout experiment was available. `OPENAI_API_KEY` was absent
+during all reported runs. Explicit evaluator use additionally requires
+`SHOPPING_COPILOT_OPENAI=1`; otherwise the network path is unreachable.
+
+The local web experience has a separate product-exploration profile: model
+`gpt-5.6-terra`, low reasoning, `store=false`, six-second timeout, no retry, up
+to ten calls in a ten-turn session, and a 65% blend between deterministic and
+validated model ordering. Offline is the initial mode and keeps shopping
+messages, distilled preferences/state, and retrieval on the local Mac. With
+`OPENAI_API_KEY` present, a user may explicitly consent for one Hybrid session;
+only then does each Hybrid turn send the current message, distilled
+preferences/session state, and at most 30 already-valid candidate summaries to
+OpenAI. Missing credentials or any model failure leaves the complete offline
+ranking in place and surfaces the fallback status to the user.
+
+The web profile is an unscored experience enhancement. It does not replace the
+frozen offline result or constitute holdout evidence.
+
+The bounded credentialed helper in `evaluation/run_hybrid_eval.py` separates a
+32-session tuning-only calibration from a 32-session post-freeze exploratory
+audit. The latter is drawn from the 40 public sessions already inspected for the
+offline freeze. It is therefore neither untouched nor a second locked
+validation set, and its outcome must never enable, disable, or change the
+configuration. The legacy phase value `validation` is retained only for CLI
+compatibility. A dry run emits selection/configuration hashes and a budget plan;
+it performs no scoring run or model call and is not performance, token, cost, or
+network evidence.
 
 ## Evaluation discipline
 
@@ -200,14 +247,27 @@ estimate of two calls totaling 8,000 input and 1,000 output tokens is about
 not measured spend, and current pricing/account access must be rechecked before
 opting in.
 
+The local web adapter estimates GPT-5.6 Terra turns at the prices observed during
+implementation: $2.00 per million input tokens and $12.00 per million output
+tokens. This value is shown for transparency only; no credentialed Terra call or
+spend is included in the reported benchmark. Current pricing must be rechecked
+before a model-enabled demonstration.
+
 ## Verification and safety
 
-The 17-test suite covers both entrypoints, reset-before-respond, strict schema,
+The automated core suite covers both entrypoints, reset-before-respond, strict schema,
 unique valid recommendations, turn ten, deterministic sessions, state/override,
 Boundary tombstones, soft decay, malformed catalog fields/prices, API timeout/no
 retry/circuit breaker, and static prohibition on `ground_truth` or `public_set`
 references in the runtime Agent module. The original evaluator tests remain
 unchanged and pass.
+
+Separate API tests exercise health/startup behavior, session and message
+validation, idempotent replay/conflict handling, server-owned turns, exact nested
+Agent responses, and security headers. Frontend checks cover TypeScript, rendered
+interaction states, and the production build. The local experience is also
+reviewed manually at desktop and narrow widths; local HTTP success and rendered
+browser behavior are treated as distinct gates.
 
 The agent package never imports the public labels or evaluator. Evaluation and
 demo helpers that verify target rank live in separate `evaluation/` and `demos/`
@@ -223,8 +283,16 @@ packages and are not imported by `agent.py`.
 - The dense index is hash-based rather than a pretrained semantic embedding.
 - Profile ranking and OpenAI enhancement are implemented but disabled because
   tuning/holdout evidence did not justify enabling them.
+- All displayed product commerce fields are from a fixed Amazon Reviews 2023
+  snapshot, not live inventory; Amazon links require user verification.
+- The loopback web service is production-shaped but not a production deployment:
+  it has no authentication, durable multi-user storage, live catalog contract,
+  monitoring, rate-limit edge, or public hosting.
 
 ## Team contributions
 
-Khansa and Naaman jointly contributed across problem framing, system
-architecture, implementation, evaluation, documentation, and demo preparation.
+Khansa and Naaman must jointly replace this handoff note with their actual,
+specific contribution split before submission. No division of implementation,
+evaluation, design, documentation, or demo work is inferred by this report.
+They should review the final wording against commit history and working notes,
+then use the reproducible checklist in `docs/team_handoff.md`.

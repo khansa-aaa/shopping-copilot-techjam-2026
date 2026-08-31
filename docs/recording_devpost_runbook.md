@@ -24,27 +24,53 @@ in `docs/demo_script.md`.
    with `docs/technical_report.md`.
 6. Run `python3 -m demos.run_demos`; confirm the four scenarios complete and no
    credential/network prompt appears.
-7. If an API key exists in the shell, leave `SHOPPING_COPILOT_OPENAI` unset for
+7. Run `scripts/setup_local_web.sh`, the API/web test commands in `README.md`,
+   and `scripts/run_local_web.sh`; confirm the interface reaches Ready and a
+   complete offline-mode shopping turn renders.
+8. If an API key exists in the shell, leave `SHOPPING_COPILOT_OPENAI` unset for
    the frozen offline demo. Never show or print the key.
 
 Local success proves only the local bundle, not GitHub visibility, YouTube
 processing, Devpost acceptance, or judge-environment compatibility.
 
-## T-3 hours: record the three-minute demo
+## T-3 hours: build or record the three-minute demo
+
+The preferred submission cut is reproducible from the real local UI captures and
+checked repository evidence:
+
+```bash
+python3 scripts/build_final_demo_video.py --check-inputs
+python3 scripts/build_final_demo_video.py
+```
+
+Review these generated, ignored artifacts before uploading:
+
+- `output/demo/shopping-copilot-techjam-final.mp4` — final H.264/AAC video;
+- `output/demo/shopping-copilot-techjam-final.png` — upload thumbnail;
+- `output/demo/shopping-copilot-techjam-final.srt` — optional YouTube captions;
+- `output/demo/shopping-copilot-techjam-final.json` — duration, hashes, media
+  metadata, screenshot inputs, and verified claim manifest.
+
+Watch the entire MP4 once at normal speed with headphones and once muted. The
+builder rejects a cut at or above three minutes, but changing the narration voice
+or rate changes the duration. The live-recording outline below remains a fallback
+if the generated cut must be replaced.
 
 Suggested timeline:
 
 - 0:00–0:20 — problem and exact-ASIN/ten-turn objective;
-- 0:20–0:45 — architecture diagram and offline fallback;
-- 0:45–1:25 — Browsing trace: composite clarification to rank-1 result;
-- 1:25–2:05 — Override trace: show evidence revocation and rank-1 result;
-- 2:05–2:30 — Boundary handling and deterministic validation;
+- 0:20–0:45 — architecture diagram and the judge/web split;
+- 0:45–1:25 — web Browsing journey: clarification, ranked cards, save/compare;
+- 1:25–2:05 — web Override journey: show visible evidence revocation;
+- 2:05–2:30 — expert diagnostics, snapshot disclosure, and offline fallback;
 - 2:30–2:50 — baseline-to-final metrics and latency/cost disclosure;
 - 2:50–3:00 — limitations and close.
 
-Record only terminal commands/output and repository artifacts. Hide notifications,
-shell history, environment variables, account emails, and private tabs. Do not
-display `OPENAI_API_KEY` or payment/account dashboards.
+Record only the local app, relevant terminal output, and repository artifacts.
+Hide notifications, shell history, environment variables, account emails, and
+private tabs. Do not display `OPENAI_API_KEY` or payment/account dashboards. If
+an Amazon verification link is shown, do not sign in or imply that a purchase
+occurred.
 
 ## T-2 hours: user-controlled publication
 
@@ -68,7 +94,9 @@ Populate and review:
 - public GitHub URL;
 - public three-minute YouTube URL;
 - technologies: Python, SQLite FTS5, deterministic hybrid retrieval; disclose
-  GPT-5.6 Luna as implemented but disabled in the frozen run;
+  GPT-5.6 Luna as the conservative evaluator experiment and GPT-5.6 Terra as the
+  local-web enhancement profile; state that both were absent from the frozen
+  reported run;
 - metrics, latency, RAM, token use, actual cost, and offline behavior;
 - limitations and real team-member contributions;
 - required track/category selections and eligibility confirmations.

@@ -2,12 +2,19 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .env
+.venv-demo/
 results.json
 results*.json
 evaluation/results/
 output/
 data/catalog.jsonl
 data/releases/
+demo/web/node_modules/
+demo/web/dist/
+demo/web/coverage/
+demo/web/*.tsbuildinfo
+.playwright-mcp/
+shopping-copilot-*.png
 # Organizer-only code, private evaluation data, manifests, and build reports.
 organizer/
 secure/

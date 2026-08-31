@@ -1,18 +1,46 @@
-flowchart LR
-  E[Official evaluator] -->|reset / respond| A[Strict Agent contract]
-  A --> S[Typed session state]
-  S --> R{Evidence-aware route activation}
-  R --> F[Weighted SQLite FTS5]
-  R --> X[Structured facets]
-  R --> D[256D catalog-derived vectors]
-  R --> P[Optional profile prior]
-  F --> W[Weighted reciprocal-rank fusion]
-  X --> W
-  D --> W
-  P --> W
-  W --> H[Confidence-aware filtering and top-100 rerank]
-  H --> C[Clarification / diversity / unseen rotation]
-  C --> V[Deterministic output validator]
-  S -. opt-in, max 2 calls .-> O[GPT-5.6 Luna Structured Output]
-  O -. validated candidate subset only .-> H
-  O -. failure / timeout .-> H
+flowchart TB
+  subgraph Interfaces[Two supported interfaces]
+    E[Official evaluator] -->|reset and respond| AC[Strict Agent contract]
+    U[Local shopper] --> UI[React experience]
+    UI -->|same-origin JSON| API[Loopback FastAPI adapter]
+    API -->|server-owned sessions and turns| AC
+  end
+
+  subgraph Core[Offline-first retrieval core]
+    AC --> S[Typed conversation state]
+    S --> R{Evidence-aware route activation}
+    R --> F[Field-weighted SQLite FTS5]
+    R --> X[Structured facet maps]
+    R --> D[256D catalog-derived vectors]
+    R --> P[Optional profile prior]
+    F --> WRF[Weighted reciprocal-rank fusion]
+    X --> WRF
+    D --> WRF
+    P --> WRF
+    WRF --> H[Confidence-aware filters and top-100 rerank]
+    H --> C[Clarification, diversity, unseen rotation]
+    C --> V[Deterministic output validator]
+  end
+
+  V -->|official schema| E
+  V -->|nested official response| API
+  API --> DM[Snapshot metadata, quick replies, diagnostics]
+  DM --> UI
+
+  UI -. explicit consent for one Hybrid session .-> O[Bounded OpenAI enhancement]
+  S -. consented distilled state .-> O
+  H -. at most 30 valid candidates .-> O
+  O -. validated blended order .-> H
+  O -. missing key, timeout, or invalid output .-> H
+
+  SNAP[Fixed 50,000-item TechJam snapshot] --> F
+  SNAP --> X
+  SNAP --> D
+  UI -. user-initiated verification only .-> AMZ[Amazon ASIN search]
+
+  subgraph Future[Public-product gates, not implemented]
+    LIVE[Licensed live catalog and inventory]
+    AUTH[Authentication, tenant isolation, privacy]
+    OPS[Deployment, rate limits, monitoring, recovery]
+    GOV[Commerce, affiliate, security, accessibility review]
+  end

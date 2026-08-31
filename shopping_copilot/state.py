@@ -35,6 +35,44 @@ class Evidence:
     source: str
 
 
+@dataclass(frozen=True, slots=True)
+class EnhancementStatus:
+    """JSON-safe status for the optional enhancement on one response turn."""
+
+    turn: int = 0
+    outcome: str = "not_started"
+    enabled: bool = False
+    attempted: bool = False
+    applied: bool = False
+    model: str = "gpt-5.6-luna"
+    reasoning_effort: str = "none"
+    calls_used: int = 0
+    max_calls: int = 2
+    timeout_seconds: float = 2.5
+    rank_blend: float = 1.0
+    latency_ms: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    def as_dict(self) -> dict:
+        return {
+            "turn": self.turn,
+            "outcome": self.outcome,
+            "enabled": self.enabled,
+            "attempted": self.attempted,
+            "applied": self.applied,
+            "model": self.model,
+            "reasoning_effort": self.reasoning_effort,
+            "calls_used": self.calls_used,
+            "max_calls": self.max_calls,
+            "timeout_seconds": self.timeout_seconds,
+            "rank_blend": self.rank_blend,
+            "latency_ms": round(self.latency_ms, 3),
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+        }
+
+
 @dataclass(slots=True)
 class SessionState:
     session_id: str
@@ -56,6 +94,7 @@ class SessionState:
     openai_calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    enhancement_status: EnhancementStatus = field(default_factory=EnhancementStatus)
 
     @property
     def profile_priors(self) -> tuple[str, ...]:

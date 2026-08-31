@@ -9,9 +9,9 @@ from pathlib import Path
 from unittest import mock
 
 import agent as top_level
-from shopping_copilot.agent import Agent
+from shopping_copilot.agent import Agent, AgentConfig
 from shopping_copilot.catalog import Product, normalize_price
-from shopping_copilot.openai_enhancer import OpenAIEnhancer
+from shopping_copilot.openai_enhancer import Enhancement, EnhancementAttempt, OpenAIEnhancer
 from shopping_copilot.state import SessionState
 from starter.agent import Agent as StarterAgent
 
@@ -64,6 +64,9 @@ class AgentContractTest(unittest.TestCase):
         identifiers = [item["parent_asin"] for item in response["recommendations"]]
         self.assertEqual(len(identifiers), len(set(identifiers)))
         self.assertTrue(set(identifiers).issubset({"A", "B", "C"}))
+        status = self.agent.get_enhancement_status("contract")
+        self.assertEqual(status["outcome"], "disabled")
+        self.assertFalse(status["attempted"])
 
     def test_all_ten_turn_numbers_and_buying_browsing_routes(self) -> None:
         self.agent.reset("turns", {"preference_tags": []})
@@ -141,6 +144,95 @@ class AgentContractTest(unittest.TestCase):
         )
         self.assertTrue(response["recommendations"])
 
+    def test_enhancement_preserves_hard_constraints_and_response_schema(self) -> None:
+        config = AgentConfig(openai_enhancement=True, openai_rank_blend=1.0)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            agent = Agent(self.catalog, config)
+        enhancement = Enhancement(
+            query_rewrite="winter boots",
+            slot_updates=(("style", "winter", 0.7),),
+            candidate_order=("B", "NOT-IN-CATALOG", "A"),
+            next_attribute="color",
+            prompt_tokens=7,
+            completion_tokens=3,
+        )
+        agent.enhancer = mock.Mock()
+        agent.enhancer.attempt.return_value = EnhancementAttempt(
+            "applied", enhancement=enhancement, attempted=True, latency_ms=12.5,
+            prompt_tokens=7, completion_tokens=3,
+        )
+        agent.reset("hard", {"preference_tags": []})
+        response = agent.respond(
+            "hard", "I'm looking for Men Shirts. A key requirement is: soft cotton.", 1, 3
+        )
+        self.assertEqual(set(response), {"message", "ask_attribute", "recommendations", "usage"})
+        self.assertEqual(response["recommendations"][0]["parent_asin"], "A")
+        submitted_products = agent.enhancer.attempt.call_args.args[2]
+        self.assertEqual([product.parent_asin for product in submitted_products], ["A"])
+        self.assertEqual(response["usage"], {"prompt_tokens": 7, "completion_tokens": 3})
+        status = agent.get_enhancement_status("hard")
+        self.assertEqual(status["outcome"], "applied")
+        self.assertTrue(status["attempted"])
+        self.assertTrue(status["applied"])
+        self.assertEqual(status["latency_ms"], 12.5)
+
+    def test_weighted_rank_blend_and_failure_fallback(self) -> None:
+        config = AgentConfig(openai_enhancement=True, openai_rank_blend=0.65)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            enhanced = Agent(self.catalog, config)
+        self.assertEqual(enhanced._blend_ranking([0, 1, 2], [2, 1], 0.65), [2, 1, 0])
+
+        enhanced.enhancer = mock.Mock()
+        enhanced.enhancer.attempt.return_value = EnhancementAttempt(
+            "failed", attempted=True, latency_ms=6.0
+        )
+        offline = Agent(self.catalog)
+        for agent, session in ((enhanced, "failed"), (offline, "offline")):
+            agent.reset(session, {"preference_tags": []})
+        message = "I'm looking for Men Shirts. A key requirement is: soft cotton."
+        fallback = enhanced.respond("failed", message, 1, 3)
+        expected = offline.respond("offline", message, 1, 3)
+        self.assertEqual(fallback, expected)
+        status = enhanced.get_enhancement_status("failed")
+        self.assertEqual(status["outcome"], "failed")
+        self.assertTrue(status["attempted"])
+        self.assertFalse(status["applied"])
+
+    def test_enhancement_cannot_reask_an_active_attribute(self) -> None:
+        config = AgentConfig(openai_enhancement=True)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            agent = Agent(self.catalog, config)
+        enhancement = Enhancement(
+            query_rewrite="",
+            slot_updates=(),
+            candidate_order=(),
+            next_attribute="category",
+            prompt_tokens=0,
+            completion_tokens=0,
+        )
+        agent.enhancer = mock.Mock()
+        agent.enhancer.attempt.return_value = EnhancementAttempt(
+            "applied", enhancement=enhancement, attempted=True
+        )
+        agent.reset("known-slot", {"preference_tags": []})
+        response = agent.respond("known-slot", "I'm looking for Men Shirts.", 1, 3)
+        self.assertNotEqual(response["ask_attribute"], "category")
+
+    def test_failed_model_output_still_reports_response_usage(self) -> None:
+        config = AgentConfig(openai_enhancement=True)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            agent = Agent(self.catalog, config)
+        agent.enhancer = mock.Mock()
+        agent.enhancer.attempt.return_value = EnhancementAttempt(
+            "failed", attempted=True, prompt_tokens=11, completion_tokens=4
+        )
+        agent.reset("paid-failure", {"preference_tags": []})
+        response = agent.respond("paid-failure", "Show me shirts.", 1, 3)
+        self.assertEqual(response["usage"], {"prompt_tokens": 11, "completion_tokens": 4})
+        status = agent.get_enhancement_status("paid-failure")
+        self.assertEqual(status["prompt_tokens"], 11)
+        self.assertEqual(status["completion_tokens"], 4)
+
 
 class NormalizationAndAPITest(unittest.TestCase):
     def test_malformed_catalog_fields(self) -> None:
@@ -196,6 +288,103 @@ class NormalizationAndAPITest(unittest.TestCase):
         self.assertFalse(submitted["store"])
         self.assertEqual(submitted["text"]["format"]["type"], "json_schema")
         self.assertEqual(request.call_args.kwargs["timeout"], 2.5)
+
+    def test_malformed_success_payload_preserves_reported_usage(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "output_text": "{malformed",
+                    "usage": {"input_tokens": 13, "output_tokens": 5},
+                }).encode()
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            enhancer = OpenAIEnhancer(enabled=True)
+        state = SessionState("malformed-usage", {"preference_tags": []})
+        with mock.patch("urllib.request.urlopen", return_value=FakeResponse()):
+            attempt = enhancer.attempt(state, "shirt", [Product.from_json(PRODUCTS[0])])
+        self.assertEqual(attempt.outcome, "failed")
+        self.assertEqual(attempt.prompt_tokens, 13)
+        self.assertEqual(attempt.completion_tokens, 5)
+
+    def test_http_protocol_failure_falls_back_without_retry(self) -> None:
+        import http.client
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            enhancer = OpenAIEnhancer(enabled=True)
+        state = SessionState("protocol-failure", {"preference_tags": []})
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=http.client.IncompleteRead(b"partial", 10)
+        ) as request:
+            attempt = enhancer.attempt(state, "shirt", [Product.from_json(PRODUCTS[0])])
+        self.assertEqual(attempt.outcome, "failed")
+        self.assertEqual(request.call_count, 1)
+        self.assertFalse(enhancer.available)
+
+    def test_terra_configuration_call_limit_and_allowed_candidate_ids(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                output = {
+                    "query_rewrite": "blue cotton shirt",
+                    "slot_updates": [],
+                    "candidate_order": ["NOT-ALLOWED", "A", "A"],
+                    "next_attribute": None,
+                }
+                return json.dumps({
+                    "output_text": json.dumps(output),
+                    "usage": {"input_tokens": 11, "output_tokens": 4},
+                }).encode()
+
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test"}, clear=False):
+            enhancer = OpenAIEnhancer(
+                enabled=True,
+                model="gpt-5.6-terra",
+                reasoning_effort="low",
+                max_calls=1,
+                timeout_seconds=6,
+            )
+        state = SessionState("terra", {"preference_tags": []})
+        with mock.patch("urllib.request.urlopen", return_value=FakeResponse()) as request:
+            result = enhancer.enhance(state, "shirt", [Product.from_json(PRODUCTS[0])])
+            limited = enhancer.attempt(state, "shirt", [Product.from_json(PRODUCTS[0])])
+        self.assertIsNotNone(result)
+        self.assertEqual(result.candidate_order, ("A",))
+        self.assertEqual(limited.outcome, "call_limit")
+        self.assertEqual(request.call_count, 1)
+        submitted = json.loads(request.call_args.args[0].data)
+        self.assertEqual(submitted["model"], "gpt-5.6-terra")
+        self.assertEqual(submitted["reasoning"], {"effort": "low"})
+        self.assertEqual(request.call_args.kwargs["timeout"], 6.0)
+
+    def test_agent_config_validates_openai_controls(self) -> None:
+        config = AgentConfig(
+            openai_model="gpt-5.6-terra",
+            openai_reasoning_effort="low",
+            openai_max_calls=10,
+            openai_timeout_seconds=6,
+            openai_rank_blend=0.65,
+        )
+        self.assertEqual(config.openai_model, "gpt-5.6-terra")
+        self.assertEqual(config.openai_max_calls, 10)
+        with self.assertRaises(ValueError):
+            AgentConfig(openai_reasoning_effort="extreme")
+        with self.assertRaises(ValueError):
+            AgentConfig(openai_max_calls=11)
+        with self.assertRaises(ValueError):
+            AgentConfig(openai_timeout_seconds=0)
+        with self.assertRaises(ValueError):
+            AgentConfig(openai_rank_blend=1.1)
 
     def test_api_is_off_without_explicit_opt_in(self) -> None:
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test", "SHOPPING_COPILOT_OPENAI": "0"}, clear=False):

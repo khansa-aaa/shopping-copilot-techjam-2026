@@ -11,7 +11,13 @@ from typing import Sequence
 
 from .catalog import CatalogIndex, terms
 from .openai_enhancer import Enhancement, OpenAIEnhancer
-from .state import ALLOWED_ATTRIBUTES, SessionState, budget_ceiling, normalize_profile
+from .state import (
+    ALLOWED_ATTRIBUTES,
+    EnhancementStatus,
+    SessionState,
+    budget_ceiling,
+    normalize_profile,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,12 +29,47 @@ class AgentConfig:
     candidate_rotation: bool = True
     profile_use: bool = False
     openai_enhancement: bool = False
+    openai_model: str = "gpt-5.6-luna"
+    openai_reasoning_effort: str = "none"
+    openai_max_calls: int = 2
+    openai_timeout_seconds: float = 2.5
+    openai_rank_blend: float = 1.0
     fts_limit: int = 700
     rrf_constant: int = 35
     rerank_limit: int = 100
     broad_candidate_threshold: int = 500
     profile_weight: float = 0.20
     popularity_weight: float = 0.025
+
+    def __post_init__(self) -> None:
+        model = self.openai_model.strip() if isinstance(self.openai_model, str) else ""
+        if not model:
+            raise ValueError("openai_model must be a non-empty string")
+        if self.openai_reasoning_effort not in OpenAIEnhancer.reasoning_efforts:
+            raise ValueError("openai_reasoning_effort is invalid")
+        if (
+            isinstance(self.openai_max_calls, bool)
+            or not isinstance(self.openai_max_calls, int)
+            or not 0 <= self.openai_max_calls <= 10
+        ):
+            raise ValueError("openai_max_calls must be an integer between 0 and 10")
+        if (
+            isinstance(self.openai_timeout_seconds, bool)
+            or not isinstance(self.openai_timeout_seconds, (int, float))
+            or not math.isfinite(float(self.openai_timeout_seconds))
+            or not 0 < float(self.openai_timeout_seconds) <= 60
+        ):
+            raise ValueError("openai_timeout_seconds must be between 0 and 60")
+        if (
+            isinstance(self.openai_rank_blend, bool)
+            or not isinstance(self.openai_rank_blend, (int, float))
+            or not math.isfinite(float(self.openai_rank_blend))
+            or not 0 <= float(self.openai_rank_blend) <= 1
+        ):
+            raise ValueError("openai_rank_blend must be between 0 and 1")
+        object.__setattr__(self, "openai_model", model)
+        object.__setattr__(self, "openai_timeout_seconds", float(self.openai_timeout_seconds))
+        object.__setattr__(self, "openai_rank_blend", float(self.openai_rank_blend))
 
     def with_ablation(self, name: str) -> "AgentConfig":
         mapping = {
@@ -60,14 +101,29 @@ class Agent:
             config = replace(AgentConfig(), openai_enhancement=api_opt_in in {"1", "true", "yes", "on"})
         self.config = config
         self.sessions: dict[str, SessionState] = {}
-        self.enhancer = OpenAIEnhancer()
+        self.enhancer = OpenAIEnhancer(
+            enabled=config.openai_enhancement,
+            model=config.openai_model,
+            reasoning_effort=config.openai_reasoning_effort,
+            max_calls=config.openai_max_calls,
+            timeout_seconds=config.openai_timeout_seconds,
+        )
 
     def reset(self, session_id: str, user_profile: dict) -> None:
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
         if not isinstance(user_profile, dict):
             raise TypeError("user_profile must be a dict")
-        self.sessions[session_id] = SessionState(session_id, normalize_profile(user_profile))
+        state = SessionState(session_id, normalize_profile(user_profile))
+        state.enhancement_status = self._enhancement_status(state, "not_started")
+        self.sessions[session_id] = state
+
+    def get_enhancement_status(self, session_id: str) -> dict:
+        """Return optional per-turn diagnostics without changing the official response schema."""
+
+        if session_id not in self.sessions:
+            raise RuntimeError("reset must be called before reading enhancement status")
+        return self.sessions[session_id].enhancement_status.as_dict()
 
     def respond(self, session_id: str, user_message: str, turn: int, top_k: int) -> dict:
         if session_id not in self.sessions:
@@ -78,13 +134,21 @@ class Agent:
             raise ValueError("top_k must be an integer between 1 and 10")
         state = self.sessions[session_id]
         if not self.config.state_accumulation and turn > 1:
-            state = SessionState(session_id, state.user_profile, last_recommendations=state.last_recommendations)
+            state = SessionState(
+                session_id,
+                state.user_profile,
+                last_recommendations=state.last_recommendations,
+                openai_calls=state.openai_calls,
+                prompt_tokens=state.prompt_tokens,
+                completion_tokens=state.completion_tokens,
+                enhancement_status=state.enhancement_status,
+            )
             self.sessions[session_id] = state
         state.start_turn(user_message, turn)
         prompt_tokens_before = state.prompt_tokens
         completion_tokens_before = state.completion_tokens
 
-        ranked, candidate_count, separation = self._retrieve(state, user_message)
+        ranked, candidate_count, separation, eligible = self._retrieve(state, user_message)
         if not ranked:
             ranked = list(range(min(len(self.index.products), max(top_k, 10))))
         ranked = self._rotate(ranked, state, top_k)
@@ -93,19 +157,39 @@ class Agent:
             ranked = self._diversify(ranked, top_k)
 
         enhancement = None
-        if self.config.openai_enhancement and self.enhancer.available:
-            enhancement = self.enhancer.enhance(
-                state, user_message, [self.index.products[index] for index in ranked[:30]]
+        if self.config.openai_enhancement:
+            rerankable = [index for index in ranked[:30] if index in eligible]
+            attempt = self.enhancer.attempt(
+                state, user_message, [self.index.products[index] for index in rerankable]
             )
+            state.prompt_tokens += attempt.prompt_tokens
+            state.completion_tokens += attempt.completion_tokens
+            enhancement = attempt.enhancement
             if enhancement is not None:
-                ranked = self._apply_enhancement(ranked, state, enhancement)
+                ranked = self._apply_enhancement(ranked, state, enhancement, eligible)
+            state.enhancement_status = self._enhancement_status(
+                state,
+                attempt.outcome,
+                attempted=attempt.attempted,
+                applied=enhancement is not None,
+                latency_ms=attempt.latency_ms,
+                prompt_tokens=attempt.prompt_tokens,
+                completion_tokens=attempt.completion_tokens,
+            )
+        else:
+            state.enhancement_status = self._enhancement_status(state, "disabled")
 
         recommendations = [
             {"parent_asin": self.index.products[index].parent_asin} for index in ranked[:top_k]
         ]
         ask_attribute = self._next_attribute(state, ranked[:100], broad)
-        if enhancement and enhancement.next_attribute not in state.no_preferences and turn < 10:
-            ask_attribute = enhancement.next_attribute or ask_attribute
+        known_attributes = {
+            attribute for attribute in ALLOWED_ATTRIBUTES if state.active_evidence(attribute)
+        }
+        if enhancement and enhancement.next_attribute and turn < 10:
+            proposed_attribute = enhancement.next_attribute
+            if proposed_attribute not in state.no_preferences and proposed_attribute not in known_attributes:
+                ask_attribute = proposed_attribute
         if turn >= 10 or not self.config.clarification:
             ask_attribute = None
         response = {
@@ -120,7 +204,9 @@ class Agent:
         state.last_recommendations = tuple(item["parent_asin"] for item in recommendations)
         return self._validate_response(response, top_k)
 
-    def _retrieve(self, state: SessionState, user_message: str) -> tuple[list[int], int, float]:
+    def _retrieve(
+        self, state: SessionState, user_message: str
+    ) -> tuple[list[int], int, float, set[int]]:
         accumulated = state.query_text(include_profile=False)
         query = accumulated if self.config.state_accumulation else user_message
         if not query.strip():
@@ -219,7 +305,7 @@ class Agent:
             category_matches = self.index.facet_candidates("category", categories)
             if category_matches:
                 candidate_count = max(candidate_count, len(category_matches))
-        return reranked, candidate_count, separation
+        return reranked, candidate_count, separation, filtered
 
     def _rerank(self, candidates, fused, provenance, state, query) -> list[int]:
         max_fused = max((fused[index] for index in candidates), default=1.0) or 1.0
@@ -324,9 +410,13 @@ class Agent:
             return ("I’ve refined the shortlist. " if has_recommendations else "") + questions[attribute]
         return "Here are the best matches from the current preferences."
 
-    def _apply_enhancement(self, ranking: list[int], state: SessionState, enhancement: Enhancement) -> list[int]:
-        state.prompt_tokens += enhancement.prompt_tokens
-        state.completion_tokens += enhancement.completion_tokens
+    def _apply_enhancement(
+        self,
+        ranking: list[int],
+        state: SessionState,
+        enhancement: Enhancement,
+        allowed_rerank: set[int],
+    ) -> list[int]:
         for attribute, value, confidence in enhancement.slot_updates:
             state.add_evidence(attribute, value, confidence=confidence, hard=False, source="openai")
         if enhancement.query_rewrite:
@@ -334,9 +424,63 @@ class Agent:
                 "feature", enhancement.query_rewrite,
                 confidence=0.55, hard=False, source="openai_query_rewrite",
             )
-        preferred = [self.index.id_to_index[value] for value in enhancement.candidate_order]
-        seen = set(preferred)
-        return preferred + [index for index in ranking if index not in seen]
+        ranking_set = set(ranking)
+        preferred: list[int] = []
+        seen: set[int] = set()
+        for value in enhancement.candidate_order:
+            index = self.index.id_to_index.get(value)
+            if index is None or index not in ranking_set or index not in allowed_rerank or index in seen:
+                continue
+            preferred.append(index)
+            seen.add(index)
+        return self._blend_ranking(ranking, preferred, self.config.openai_rank_blend)
+
+    def _blend_ranking(self, ranking: list[int], preferred: list[int], weight: float) -> list[int]:
+        if not preferred or weight <= 0:
+            return ranking
+        if weight >= 1:
+            selected = set(preferred)
+            return preferred + [index for index in ranking if index not in selected]
+        base_rank = {index: rank for rank, index in enumerate(ranking, 1)}
+        selected = set(preferred)
+        model_order = preferred + [index for index in ranking if index not in selected]
+        model_rank = {index: rank for rank, index in enumerate(model_order, 1)}
+        constant = self.config.rrf_constant
+
+        def score(index: int) -> tuple[float, int]:
+            value = (1.0 - weight) / (constant + base_rank[index])
+            value += weight / (constant + model_rank[index])
+            return -value, base_rank[index]
+
+        return sorted(ranking, key=score)
+
+    def _enhancement_status(
+        self,
+        state: SessionState,
+        outcome: str,
+        *,
+        attempted: bool = False,
+        applied: bool = False,
+        latency_ms: float = 0.0,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+    ) -> EnhancementStatus:
+        return EnhancementStatus(
+            turn=state.turn,
+            outcome=outcome,
+            enabled=bool(getattr(self.enhancer, "enabled", False)),
+            attempted=attempted,
+            applied=applied,
+            model=self.config.openai_model,
+            reasoning_effort=self.config.openai_reasoning_effort,
+            calls_used=state.openai_calls,
+            max_calls=self.config.openai_max_calls,
+            timeout_seconds=self.config.openai_timeout_seconds,
+            rank_blend=self.config.openai_rank_blend,
+            latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
 
     def _validate_response(self, response: dict, top_k: int) -> dict:
         if set(response) != {"message", "ask_attribute", "recommendations", "usage"}:

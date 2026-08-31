@@ -10,15 +10,16 @@ Shopping Copilot
 
 ## One-line pitch
 
-Offline-first conversational search that finds the right catalog product even
-when shopping intent is vague, evolving, or replaced.
+Offline-first conversational shopping that turns vague, evolving intent into a
+ranked, explainable shortlist.
 
 ## Project description
 
 Shopping rarely begins with a perfect query. Customers start broadly, reveal
 constraints gradually, reject recommendations, or change direction completely.
-Shopping Copilot is a headless conversational retrieval agent built to handle
-that uncertainty across the official 50,000-product catalog.
+Shopping Copilot handles that uncertainty across the official 50,000-product
+catalog through both the exact headless judging contract and a complete local
+shopping experience.
 
 On every turn, it returns a natural-language response, a structured clarification
 attribute, and up to ten unique catalog-valid product IDs. It handles Buying,
@@ -34,11 +35,30 @@ fixed weighted reciprocal-rank fusion and followed by confidence-aware filtering
 and top-100 reranking. Broad queries receive diverse candidates and a
 high-information clarification; turn ten never asks another question.
 
+The local React/FastAPI product makes that intelligence tangible. Shoppers can
+begin with guided journeys or free text, answer contextual quick replies, ask
+for different options, explicitly change direction, inspect why each result
+matched, compare products side by side, save a browser-local shortlist, switch
+marketplace verification links, export the session, and open an expert view of
+intent signals, constraints, retrieval routes, latency, tokens, cost, and safe
+fallback status. The API enforces server-owned turns and idempotent retries while
+keeping the official Agent payload unchanged.
+
+Every commerce field is labeled honestly: results are from the fixed TechJam
+snapshot derived from Amazon Reviews 2023, not current Amazon inventory. The
+dataset has no images, so the product uses neutral category art rather than
+fabricated photography. Amazon links are user-initiated ASIN searches for current
+verification; Shopping Copilot does not add to cart or purchase.
+
 The frozen competition configuration runs entirely offline with Python’s
-standard library. An optional GPT-5.6 Luna enhancement is implemented behind
-explicit environment opt-in, strict validation, a two-call limit, timeout, and
-circuit breaker, but it was disabled for every reported evaluation because no
-credentialed holdout experiment justified enabling it.
+standard library. A conservative optional GPT-5.6 Luna enhancement is available
+for scored experiments behind explicit opt-in. The web experience also supports
+a bounded GPT-5.6 Terra reranker over at most 30 already-valid candidates, with
+strict validation and visible fallback. The web app starts Offline and requires
+explicit consent for each Hybrid session before sending the current shopping
+message, distilled preferences/state, and candidate summaries to OpenAI. No
+credentialed model result is included in the reported metrics because it was not
+justified by holdout evidence.
 
 Using the unmodified 200-session public evaluator, the frozen agent achieved:
 
@@ -55,23 +75,26 @@ when state accumulation, clarification, or recommendation rotation was removed.
 
 Current limitations include approximately 733 MB peak RAM, only ten public
 Boundary examples, a feature-hash dense index rather than pretrained embeddings,
-and no claim of performance on the organizer’s private judging set. Future work
-would add a disk-backed index and run controlled trials of profile ranking and
-optional model reranking.
+snapshot rather than live commerce data, and no claim of performance on the
+organizer’s private judging set. A public release would additionally require a
+licensed live feed, authentication, durable storage, privacy/abuse controls,
+observability, compliance review, load testing, and deployment ownership.
 
 ## Technologies
 
 Python 3.10+, SQLite FTS5, structured facet retrieval, signed feature hashing,
-weighted reciprocal-rank fusion, deterministic session-state management, and an
-optional OpenAI Responses API / GPT-5.6 Luna enhancement.
+weighted reciprocal-rank fusion, deterministic session-state management,
+FastAPI, React, TypeScript, Vite, and optional OpenAI Responses API enhancements
+with GPT-5.6 Luna/Terra profiles.
 
 ## Links and account-holder fields
 
 - Public repository: `https://github.com/khansa-aaa/shopping-copilot-techjam-2026`
 - Three-minute YouTube demo: `[PUBLIC_YOUTUBE_URL]`
-- Team roster and contributions: Khansa and Naaman jointly contributed across
-  problem framing, system architecture, implementation, evaluation,
-  documentation, and demo preparation.
+- Team roster and contributions: `[KHANSA: INSERT SPECIFIC, VERIFIED WORK]`;
+  `[NAAMAN: INSERT SPECIFIC, VERIFIED WORK]`. Both teammates must review this
+  split against commit history and working notes before it is pasted into
+  Devpost. Do not replace it with a blanket joint-contribution claim.
 - Track/category: the account holder selects the official conversational-search
   and e-commerce track shown in the authenticated Devpost form.
 - Eligibility and legal attestations: the account holder reviews and accepts

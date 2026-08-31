@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shopping Copilot">
+  <rect x="8" y="8" width="48" height="48" rx="15" fill="#49d6c3"/>
+  <rect x="3" y="3" width="48" height="48" rx="15" fill="#ff6b4b"/>
+  <rect x="6" y="6" width="48" height="48" rx="15" fill="#181b18"/>
+  <text x="30" y="35" fill="#fff" font-family="Arial, sans-serif" font-size="15" font-weight="800" text-anchor="middle">SC</text>
+</svg>

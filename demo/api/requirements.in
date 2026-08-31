@@ -1,0 +1,6 @@
+fastapi==0.141.1
+uvicorn==0.52.4
+httpx==0.28.1
+# anyio needs this on Python 3.10. Pin it unconditionally so the hash-locked
+# environment is portable across every Python version supported by the project.
+exceptiongroup==1.3.1
