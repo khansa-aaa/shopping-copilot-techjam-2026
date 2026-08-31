@@ -130,8 +130,14 @@ See [demo traces](docs/demo_traces.md) and the
 [Devpost copy](docs/devpost_submission.md) and a timed
 [demo script](docs/demo_script.md) are also included.
 
-No remote publication, video upload, hosted resource, or Devpost action is
-performed by this repository. Those remain account-holder actions.
+Publication remains an account-holder workflow; this repository contains no
+automatic push, video-upload, or Devpost-submission behavior.
+
+To reproduce the optional narrated demo video on macOS, install FFmpeg with
+H.264/AAC support and run `python3 scripts/build_demo_video.py`. The builder also
+uses the built-in `say` command and Swift/AppKit to synthesize narration and
+render slides; these media-tool requirements do not apply to the submitted
+agent or evaluator. Generated media stays under ignored `output/`.
 
 ## Provenance
 
