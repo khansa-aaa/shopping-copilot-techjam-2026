@@ -67,7 +67,7 @@ optional OpenAI Responses API / GPT-5.6 Luna enhancement.
 
 ## Links and account-holder fields
 
-- Public repository: `[PUBLIC_GITHUB_URL]`
+- Public repository: `https://github.com/khansa-aaa/shopping-copilot-techjam-2026`
 - Three-minute YouTube demo: `[PUBLIC_YOUTUBE_URL]`
 - Team roster and contributions: Khansa and Naaman jointly contributed across
   problem framing, system architecture, implementation, evaluation,
