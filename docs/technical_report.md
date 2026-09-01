@@ -291,8 +291,11 @@ packages and are not imported by `agent.py`.
 
 ## Team contributions
 
-Khansa and Naaman must jointly replace this handoff note with their actual,
-specific contribution split before submission. No division of implementation,
-evaluation, design, documentation, or demo work is inferred by this report.
-They should review the final wording against commit history and working notes,
-then use the reproducible checklist in `docs/team_handoff.md`.
+Khansa led product direction and requirements, shaped the end-to-end web
+experience, coordinated implementation and integration, and ran local
+validation, evaluation, release review, and submission preparation. Naaman
+recorded the final voice-over, edited and exported the end-to-end product demo,
+and reviewed the Browsing and Intent Override journeys shown in the recording.
+Both teammates must review this evidence-backed wording before the final
+Devpost rules attestation. The reproducible handoff checklist is in
+`docs/team_handoff.md`.

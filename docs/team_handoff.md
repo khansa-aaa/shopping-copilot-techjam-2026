@@ -1,18 +1,21 @@
 # Khansa and Naaman handoff
 
-Khansa and Naaman are submitting as a two-person team. This checklist supports
-integration without presuming who did which work. Their actual contribution
-split must be inserted and reviewed by both humans before submission.
+Khansa and Naaman are submitting as a two-person team. This checklist records
+the evidence-backed contribution split and the final handoff gates.
 
-## Actual contribution split — required before submission
+## Actual contribution split
 
-- Khansa: `[INSERT SPECIFIC, EVIDENCE-BACKED CONTRIBUTIONS]`
-- Naaman: `[INSERT SPECIFIC, EVIDENCE-BACKED CONTRIBUTIONS]`
-- Reviewed by both teammates on: `[DATE / TIME]`
+- Khansa: led product direction and requirements, shaped the end-to-end web
+  experience, coordinated implementation and integration, and ran local
+  validation, evaluation, release review, and submission preparation.
+- Naaman: recorded the final voice-over, edited and exported the end-to-end
+  product demo, and reviewed the Browsing and Intent Override journeys shown in
+  the recording.
+- Final gate: both teammates review this wording before the Devpost rules
+  attestation is accepted.
 
-Use commit history and working notes as evidence. Remove these placeholders only
-after both teammates agree the wording is accurate; do not substitute a blanket
-claim that every task was joint.
+This split is deliberately specific rather than claiming that every task was
+joint. Keep it aligned with commit history, working notes, and the final video.
 
 ## Source-of-truth rule
 

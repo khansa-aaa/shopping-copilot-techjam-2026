@@ -91,10 +91,12 @@ with GPT-5.6 Luna/Terra profiles.
 
 - Public repository: `https://github.com/khansa-aaa/shopping-copilot-techjam-2026`
 - Three-minute YouTube demo: `[PUBLIC_YOUTUBE_URL]`
-- Team roster and contributions: `[KHANSA: INSERT SPECIFIC, VERIFIED WORK]`;
-  `[NAAMAN: INSERT SPECIFIC, VERIFIED WORK]`. Both teammates must review this
-  split against commit history and working notes before it is pasted into
-  Devpost. Do not replace it with a blanket joint-contribution claim.
+- Team roster and contributions: Khansa led product direction and requirements,
+  shaped the web experience, coordinated implementation and integration, and
+  ran validation, evaluation, release review, and submission preparation.
+  Naaman recorded the final voice-over, edited and exported the end-to-end demo,
+  and reviewed the Browsing and Intent Override journeys shown in the recording.
+  Both teammates must review this wording before the final rules attestation.
 - Track/category: the account holder selects the official conversational-search
   and e-commerce track shown in the authenticated Devpost form.
 - Eligibility and legal attestations: the account holder reviews and accepts
