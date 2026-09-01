@@ -13,6 +13,7 @@ demo/web/node_modules/
 demo/web/dist/
 demo/web/coverage/
 demo/web/*.tsbuildinfo
+demo/recording/node_modules/
 .playwright-mcp/
 shopping-copilot-*.png
 # Organizer-only code, private evaluation data, manifests, and build reports.

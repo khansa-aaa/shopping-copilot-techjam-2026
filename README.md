@@ -216,18 +216,28 @@ This prints deterministic Buying, Browsing, Override, and Boundary traces. The
 Khansa/Naaman contribution review and final handoff checklist are documented in
 [docs/team_handoff.md](docs/team_handoff.md).
 
-On macOS, the submission cut can also be rebuilt deterministically from the
-captured local interface and repository evidence:
+On macOS, build the submission cut from deterministic, live interaction with the
+real local interface:
 
 ```bash
-python3 scripts/build_final_demo_video.py --check-inputs
-python3 scripts/build_final_demo_video.py
+scripts/setup_demo_recording.sh
+python3 scripts/build_live_demo_video.py
+python3 scripts/build_live_demo_video.py --voice-dir output/demo/voiceover
 ```
 
-The builder rejects missing captures, changed evidence, incompatible media, and
-videos at or above three minutes. It writes the ignored local artifacts to
+The setup command performs a locked `npm ci` for the recorder and installs its
+pinned Playwright Chromium build. The first Python command produces a clearly
+identified scratch-narration timing cut.
+For the submission cut, record the seven numbered clips in
+[`docs/demo_script.md`](docs/demo_script.md) as `.m4a` or `.wav` files in the
+ignored voice-over directory and run the second command. The builder launches a
+fresh browser and forced-offline loopback service, records visible typing and
+multi-turn interaction, and rejects changed evidence, incompatible media, or a
+duration at or above 2:55. It writes the ignored local artifacts to
 `output/demo/shopping-copilot-techjam-final.{mp4,png,srt,json}`; the JSON manifest
-records the input hashes, verified claims, duration, codecs, and output hash.
+records the live interaction assertions, input hashes, narration provenance,
+duration, codecs, and output hash. `scripts/build_final_demo_video.py` remains a
+slide-based fallback and is not the preferred submission video.
 
 Publication remains an account-holder workflow. No script pushes a repository,
 uploads a video, deploys a service, or submits Devpost.

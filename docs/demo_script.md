@@ -1,61 +1,97 @@
-# Three-minute demo script
+# Three-minute live demo script
 
-This is the live-recording fallback outline. The preferred evidence-checked cut
-uses the self-contained narration in `scripts/build_final_demo_video.py` and is
-written to `output/demo/shopping-copilot-techjam-final.mp4`.
+The submission video must show the working product end to end. The preferred cut
+is therefore a deterministic recording of the real local web application, not a
+slide presentation. It uses Offline benchmark mode against the official
+50,000-product snapshot and stays under 2:55 to leave upload headroom below the
+three-minute limit.
 
-Run `scripts/run_local_web.sh` before recording and keep
-`python3 -m demos.run_demos` available as deterministic terminal evidence. Hide
-shell history, environment variables, notifications, private tabs, and account
-information. The outline remains under Devpost's three-minute limit.
+Build a temporary timing cut before the final voice-over is available:
 
-## 0:00–0:19 — Problem
+```bash
+scripts/setup_demo_recording.sh
+python3 scripts/build_live_demo_video.py
+```
 
-“Shoppers rarely begin with a perfect query. They add constraints, reject
-options, and sometimes change direction. Ordinary keyword search loses that
-conversation. Shopping Copilot reduces repeated searching and scrolling by
-finding the exact catalog product as early and as highly ranked as possible.”
+The setup command is required once per fresh clone and installs the recorder's
+locked Playwright dependencies and Chromium build.
 
-## 0:19–0:37 — Product and architecture
+For the final cut, place seven numbered `.m4a` or `.wav` recordings in a local,
+ignored directory and pass it to the builder:
 
-“At startup, the agent builds three offline indexes over 50,000 products:
-weighted full-text search, structured facets, and a catalog-derived dense
-feature-hash index. The same engine powers the official judge adapter and this
-local conversational product. Their rankings are fused, confidence-filtered,
-and reranked locally.”
+```bash
+python3 scripts/build_live_demo_video.py --voice-dir output/demo/voiceover
+```
 
-## 0:37–0:58 — Browsing trace
+Record each paragraph separately, with about half a second of silence at the
+start and end. The builder cleans and normalizes the clips, but it does not use
+voice cloning or change the speaker's identity.
 
-“I begin broadly with basketball products. Shopping Copilot returns a diverse,
-explainable shortlist and asks one useful clarification. After I reveal a
-polyester constraint, accumulated evidence retrieves the matching mesh
-basketball shorts at rank one. I can save it, compare alternatives, or inspect
-exactly which signals were remembered.”
+## Narration clips
 
-## 0:58–1:13 — Override trace
+### `01`
 
-“Now I use Change direction instead of restarting. The agent advances its intent
-generation, revokes prior non-category evidence, clears old exclusions, and
-ranks the new target first. The expert view makes that state transition visible.”
+“This is Shopping Copilot running locally over the official fifty-thousand-product
+snapshot, in Offline benchmark mode. A shopper can begin vaguely, so I’ll start
+by exploring men’s basketball products.”
 
-## 1:13–1:27 — Boundary and safety
+### `02`
 
-“For ‘no preference’ answers, tombstones prevent repeated questions. Different
-options rotates the failed shortlist, while deterministic validation guarantees
-unique catalog-valid recommendations and no question on turn ten. A missing
-model key or network failure safely retains the complete offline ranking.”
+“Turn one returns ten diverse products and asks one useful clarification. I add
+polyester as a requirement. Without restarting, the shortlist reranks, and the
+verified target—the Pro Club mesh basketball shorts—moves to number one.”
 
-## 1:27–1:51 — Results
+### `03`
 
-“On the unmodified 200-session public evaluator, TechnicalScore improved from
-0.106710 to 0.815322, with 0.985 HitRate, 0.556740 MRR, and 3.21 mean turns to
-conversion. Median response latency was 20.7 milliseconds.”
+“The detail view shows the snapshot price, rating, and why the item surfaced,
+while clearly labelling its art as illustrative. Expert mode exposes the
+remembered category and material, retrieval signals, and offline model status.”
 
-## 1:51–2:19 — Practicality and close
+### `04`
 
-“The frozen configuration is fully offline, used zero model tokens, and cost zero
-dollars, so it remains reliable without network access. The interface also
-labels its fixed snapshot honestly and sends shoppers to Amazon only to verify a
-current listing—no checkout occurs here. The main tradeoff is 733 megabytes of
-peak RAM. This is a production-shaped local experience around a rigorously scored
-retrieval core, not a claim of public deployment.”
+“That completes one end-to-end multi-turn session. Now I restart into a fresh
+scenario to demonstrate a harder behavior: changing direction without carrying
+stale preferences forward.”
+
+### `05`
+
+“The shopper starts with women’s anoraks, then adds faux fur and a drawstring
+closure. Those constraints change the shortlist, but the shopper decides that
+drawstring should no longer matter.”
+
+### `06`
+
+“Using Change direction, I replace the earlier preference with faux fur alone.
+The agent advances its intent generation, removes stale department and drawstring
+evidence, and at turn three ranks the eligible override target first.”
+
+### `07`
+
+“Expert mode confirms intent version two and a seventy-percent override route.
+The same offline engine implements the official reset-and-respond contract.
+Across all two hundred public sessions, it scored zero point eight one five three
+two two, using zero model tokens and costing zero dollars.”
+
+## Recorded interaction timeline
+
+| Target time | Live action |
+|---|---|
+| 0:00–0:06 | Show the ready application and the Live local demo overlay. |
+| 0:06–0:20 | Click **Help me explore** and show the Turn 1 clarification. |
+| 0:20–0:34 | Type `For that, what matters is: polyester; 100% Polyester.` and send. |
+| 0:34–0:47 | Show `B071F2Z7JG` at rank one. |
+| 0:47–1:01 | Open the Pro Club product details and match reasons. |
+| 1:01–1:15 | Open **How it decided** and show the Turn 2 state. |
+| 1:15–1:22 | Restart and label the next journey as a fresh session. |
+| 1:22–1:35 | Click the **Change direction** starter. |
+| 1:35–1:48 | Type `For that, what matters is: Faux Fur; Drawstring closure.` and send. |
+| 1:48–1:58 | Hold on the changed Turn 2 shortlist. |
+| 1:58–2:13 | Use the lower **Change direction** control, enter `Faux Fur`, and apply it. |
+| 2:13–2:26 | Show `B09JG4V9ZR` at rank one after the valid override. |
+| 2:26–2:40 | Show intent v2, Override 70%, and revoked stale evidence. |
+| 2:40–2:49 | Close over the live Expert view with public metrics and team names. |
+
+The first journey is one uninterrupted multi-turn session. The restart before
+the override journey must stay visible so the two public traces are never
+presented as one conversation. Do not open Amazon, enable Hybrid, show an API
+key, or describe snapshot data as current inventory.

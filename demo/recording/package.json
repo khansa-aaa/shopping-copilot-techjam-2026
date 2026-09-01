@@ -1,0 +1,17 @@
+{
+  "name": "shopping-copilot-demo-recorder",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  },
+  "scripts": {
+    "record": "node record_live_demo.mjs",
+    "test": "node --test record_live_demo.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.55.1"
+  }
+}

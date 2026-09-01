@@ -33,15 +33,22 @@ in `docs/demo_script.md`.
 Local success proves only the local bundle, not GitHub visibility, YouTube
 processing, Devpost acceptance, or judge-environment compatibility.
 
-## T-3 hours: build or record the three-minute demo
+## T-3 hours: build the three-minute live demo
 
-The preferred submission cut is reproducible from the real local UI captures and
-checked repository evidence:
+The preferred submission cut is a deterministic recording of genuine browser
+interaction with the working local product. Record the seven numbered voice
+clips in `docs/demo_script.md`, save them as `.m4a` or `.wav`, and run:
 
 ```bash
-python3 scripts/build_final_demo_video.py --check-inputs
-python3 scripts/build_final_demo_video.py
+scripts/setup_demo_recording.sh
+python3 scripts/build_live_demo_video.py --voice-dir output/demo/voiceover
 ```
+
+The setup command uses the checked-in lockfile and installs the recorder's pinned
+Playwright Chromium build. It is required once per fresh clone.
+
+Running the command without `--voice-dir` creates a clearly identified
+scratch-narration timing cut only. It is not the user-voiced submission cut.
 
 Review these generated, ignored artifacts before uploading:
 
@@ -49,28 +56,28 @@ Review these generated, ignored artifacts before uploading:
 - `output/demo/shopping-copilot-techjam-final.png` — upload thumbnail;
 - `output/demo/shopping-copilot-techjam-final.srt` — optional YouTube captions;
 - `output/demo/shopping-copilot-techjam-final.json` — duration, hashes, media
-  metadata, screenshot inputs, and verified claim manifest.
+  metadata, live interaction assertions, narration provenance, and verified
+  claim manifest.
 
 Watch the entire MP4 once at normal speed with headphones and once muted. The
-builder rejects a cut at or above three minutes, but changing the narration voice
-or rate changes the duration. The live-recording outline below remains a fallback
-if the generated cut must be replaced.
+builder rejects a cut at or above 2:55, preserving upload headroom. Confirm that
+queries are visibly typed, the cursor moves, results rerank, drawers open, and
+the restart between the Browsing and Override traces is visible.
 
-Suggested timeline:
+Required timeline:
 
-- 0:00–0:20 — problem and exact-ASIN/ten-turn objective;
-- 0:20–0:45 — architecture diagram and the judge/web split;
-- 0:45–1:25 — web Browsing journey: clarification, ranked cards, save/compare;
-- 1:25–2:05 — web Override journey: show visible evidence revocation;
-- 2:05–2:30 — expert diagnostics, snapshot disclosure, and offline fallback;
-- 2:30–2:50 — baseline-to-final metrics and latency/cost disclosure;
-- 2:50–3:00 — limitations and close.
+- 0:00–1:15 — uninterrupted Browsing journey from a vague request through
+  clarification, rank-one result, product details, and Expert mode;
+- 1:15–1:22 — visible restart into a fresh session;
+- 1:22–2:40 — Override journey showing stale-evidence revocation and intent v2;
+- 2:40–2:49 — public metrics and offline disclosure over the live Expert view.
 
-Record only the local app, relevant terminal output, and repository artifacts.
-Hide notifications, shell history, environment variables, account emails, and
-private tabs. Do not display `OPENAI_API_KEY` or payment/account dashboards. If
-an Amazon verification link is shown, do not sign in or imply that a purchase
-occurred.
+The recorder uses an isolated browser context and a dedicated loopback server
+with `OPENAI_API_KEY` removed, blocks non-loopback traffic, and asserts the exact
+public-trace products before encoding. Do not open the Amazon verification link,
+enable Hybrid, or imply that snapshot price, rating, imagery, or availability is
+current. `scripts/build_final_demo_video.py` and its static screenshot cut remain
+fallback evidence only and should not be uploaded as the final demo.
 
 ## T-2 hours: user-controlled publication
 
