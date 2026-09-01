@@ -90,7 +90,7 @@ with GPT-5.6 Luna/Terra profiles.
 ## Links and account-holder fields
 
 - Public repository: `https://github.com/khansa-aaa/shopping-copilot-techjam-2026`
-- Three-minute YouTube demo: `[PUBLIC_YOUTUBE_URL]`
+- Three-minute YouTube demo: `https://youtu.be/daO2XUlwM5c`
 - Team roster and contributions: Khansa led product direction and requirements,
   shaped the web experience, coordinated implementation and integration, and
   ran validation, evaluation, release review, and submission preparation.
